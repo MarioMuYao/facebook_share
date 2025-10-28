@@ -231,7 +231,6 @@ class FacebookShareCallbackPlugin : FlutterPlugin, MethodCallHandler, ActivityAw
     private var type: String? = null
     private var quote: String? = null
     private var url: String? = null
-    private var imagePath: String? = null
     private var uint8Image: ByteArray? = null
     private var imageName: String? = null
 
@@ -279,12 +278,11 @@ class FacebookShareCallbackPlugin : FlutterPlugin, MethodCallHandler, ActivityAw
                 type = call.argument("type")
                 quote = call.argument("quote")
                 url = call.argument("url")
-                imagePath = call.argument("imagePath")
                 uint8Image = call.argument("uint8Image")
                 imageName = call.argument("imageName")
                 when (type) {
                     "ShareType.shareLinksFacebook" -> shareLinksFacebook(url, quote, result)
-                    "ShareType.sharePhotoFacebook" -> sharePhotoFacebook(imagePath, quote, result)
+                    "ShareType.sharePhotoFacebook" -> sharePhotoFacebook(uint8Image, quote, result)
                     else -> result.notImplemented()
                 }
             }
@@ -339,7 +337,7 @@ class FacebookShareCallbackPlugin : FlutterPlugin, MethodCallHandler, ActivityAw
         }
     }
 
-    private fun sharePhotoFacebook(imagePath: String?, quote: String?, result: Result) {
+    private fun sharePhotoFacebook(uint8Image: ByteArray?, quote: String?, result: Result) {
         println("--------------------sharePhotoFacebook")
         if (activity == null || callbackManager == null) {
             Handler(Looper.getMainLooper()).post {
@@ -372,14 +370,14 @@ class FacebookShareCallbackPlugin : FlutterPlugin, MethodCallHandler, ActivityAw
             }
         })
 
-        if (imagePath == null) {
+        if (uint8Image == null) {
             Handler(Looper.getMainLooper()).post {
                 result.error("ERROR", "Image data is null", null)
             }
             return
         }
 
-        Bitmap bitmap = BitmapFactory.decodeFile(File(imagePath).getAbsolutePath());
+        val bitmap = BitmapFactory.decodeByteArray(uint8Image, 0, uint8Image.size)
         if (bitmap == null) {
             Handler(Looper.getMainLooper()).post {
                 result.error("ERROR", "Failed to decode image", null)
