@@ -82,7 +82,7 @@ public class FacebookShareCallbackPlugin: NSObject, FlutterPlugin, SharingDelega
         withImagePath imagePath: String?, withQuote quote: String?
     ) {
         DispatchQueue.main.async {
-            guard let data = uint8Image else {
+            guard let data = imagePath else {
                 self.result?("error: No image data provided")
                 return
             }
