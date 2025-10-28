@@ -22,14 +22,14 @@ public class FacebookShareCallbackPlugin: NSObject, FlutterPlugin, SharingDelega
                 let type = arguments["type"] as? String ?? "ShareType.more"
                 let shareQuote = arguments["quote"] as? String ?? ""
                 let shareUrl = arguments["url"] as? String ?? ""
-                let uint8Image = arguments["uint8Image"] as? FlutterStandardTypedData
+                let imagePath = arguments["imagePath"] as? String ?? ""
                 _ = arguments["imageName"] as? String ?? ""
 
                 switch type {
                 case "ShareType.shareLinksFacebook":
                     shareLinksFacebook(withQuote: shareQuote, withUrl: shareUrl)
                 case "ShareType.sharePhotoFacebook":
-                    sharePhotoFacebook(withuint8Image: uint8Image, withQuote: shareQuote)
+                    sharePhotoFacebook(withImagePath: imagePath, withQuote: shareQuote)
                 default:
                     self.result?("Method not implemented")
                 }
@@ -79,7 +79,7 @@ public class FacebookShareCallbackPlugin: NSObject, FlutterPlugin, SharingDelega
     }
 
     private func sharePhotoFacebook(
-        withuint8Image uint8Image: FlutterStandardTypedData?, withQuote quote: String?
+        withImagePath imagePath: String?, withQuote quote: String?
     ) {
         DispatchQueue.main.async {
             guard let data = uint8Image else {
@@ -88,7 +88,7 @@ public class FacebookShareCallbackPlugin: NSObject, FlutterPlugin, SharingDelega
             }
 
             let viewController = UIApplication.shared.delegate?.window??.rootViewController
-            guard let uiImage = UIImage(data: data.data) else {
+            guard let uiImage = UIImage(contentsOfFile: imagePath) else {
                 self.result?("error: Invalid image data")
                 return
             }

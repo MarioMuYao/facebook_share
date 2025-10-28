@@ -9,6 +9,7 @@ class FacebookShareCallback {
     required ShareType type,
     String? quote,
     String? url,
+    String? imagePath,
     Uint8List? uint8Image,
     String? imageName,
   }) {
@@ -16,6 +17,7 @@ class FacebookShareCallback {
       type: type.toString(),
       quote: quote,
       url: url,
+      imagePath: imagePath,
       uint8Image: uint8Image,
       imageName: imageName,
     );

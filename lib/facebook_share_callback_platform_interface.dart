@@ -29,6 +29,7 @@ abstract class FacebookShareCallbackPlatform extends PlatformInterface {
     required String type,
     String? quote,
     String? url,
+    String? imagePath,
     Uint8List? uint8Image,
     String? imageName,
   });
