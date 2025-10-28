@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Replace "12345" with your Facebook App ID here. -->
+    <string name="facebook_app_id">12345</string>
+    <!-- Replace "abc" with your Facebook Client Token here. -->
+    <string name="facebook_client_token">abc</string>
+</resources>
