@@ -88,7 +88,7 @@ public class FacebookShareCallbackPlugin: NSObject, FlutterPlugin, SharingDelega
             }
 
             let viewController = UIApplication.shared.delegate?.window??.rootViewController
-            guard let uiImage = UIImage(contentsOfFile: imagePath) else {
+            guard let uiImage = UIImage(contentsOfFile: data) else {
                 self.result?("error: Invalid image data")
                 return
             }
