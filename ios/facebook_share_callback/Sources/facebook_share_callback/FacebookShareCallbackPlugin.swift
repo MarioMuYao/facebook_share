@@ -45,7 +45,13 @@ public final class FacebookShareCallbackPlugin: NSObject, FlutterPlugin, Sharing
         open url: URL,
         options: [UIApplication.OpenURLOptionsKey: Any] = [:]
     ) -> Bool {
-        ApplicationDelegate.shared.application(application, open: url, options: options)
+        let handledByFacebook = ApplicationDelegate.shared.application(
+            application,
+            open: url,
+            options: options
+        )
+        // Facebook's bridge response is an internal callback, not an app link.
+        return handledByFacebook || isFacebookBridgeURL(url)
     }
 
     @available(iOS 13.0, *)
@@ -55,11 +61,12 @@ public final class FacebookShareCallbackPlugin: NSObject, FlutterPlugin, Sharing
     ) -> Bool {
         var handled = false
         for context in URLContexts {
-            handled = ApplicationDelegate.shared.application(
+            let handledByFacebook = ApplicationDelegate.shared.application(
                 UIApplication.shared,
                 open: context.url,
                 options: [:]
-            ) || handled
+            )
+            handled = handledByFacebook || isFacebookBridgeURL(context.url) || handled
         }
         return handled
     }
@@ -240,6 +247,17 @@ public final class FacebookShareCallbackPlugin: NSObject, FlutterPlugin, Sharing
             return nil
         }
         return url
+    }
+
+    private func isFacebookBridgeURL(_ url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased(),
+              scheme.hasPrefix("fb"),
+              url.host?.lowercased() == "bridge"
+        else {
+            return false
+        }
+
+        return url.path.lowercased() == "/share"
     }
 
     private func presentingViewController() -> UIViewController? {

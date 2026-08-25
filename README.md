@@ -90,6 +90,20 @@ The plugin registers Facebook SDK initialization and both application/scene URL 
 
 `FacebookAppID`, `FacebookClientToken`, and the `fb[FB_APP_ID]` URL scheme must be replaced with values from the same Facebook app. The URL scheme must match the app ID exactly (or include the configured URL scheme suffix). Placeholder or mismatched values cause `configuration_error` or the Facebook SDK's generic `share_failed` error.
 
+Facebook returns through an internal URL such as `fb[FB_APP_ID]://bridge/share?bridge_args=...`. If the host app also uses `app_links`, ignore this SDK callback in `uriLinkStream`; it is not an application deep link:
+
+```dart
+final appLinks = AppLinks();
+appLinks.uriLinkStream.listen((uri) {
+  final isFacebookCallback = uri.scheme.toLowerCase().startsWith('fb') &&
+      uri.host.toLowerCase() == 'bridge' &&
+      uri.path.toLowerCase() == '/share';
+  if (isFacebookCallback) return;
+
+  // Handle application deep links here.
+});
+```
+
 ## Usage
 #### Link Sharing
 import the package

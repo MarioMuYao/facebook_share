@@ -6,6 +6,7 @@
 * Validate share input and standardize native errors as `PlatformException` codes.
 * Validate iOS Facebook configuration before opening the share dialog and forward SDK lifecycle callbacks.
 * Validate Android Facebook metadata before sharing and include native exception details in failures.
+* Consume Facebook bridge callback URLs on iOS so they are not treated as application deep links.
 * Remove the unsupported `ShareType.more` option and unused `imageName` argument.
 
 ## 0.0.1
