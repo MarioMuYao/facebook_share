@@ -12,7 +12,7 @@ Please check the latest version before installation.
 dependencies:
   flutter:
     sdk: flutter
-  # add share_facebook_callback
+  # add facebook_share_callback
   facebook_share_callback: [LATEST_VERSION]
 ```
 
@@ -22,7 +22,7 @@ dependencies:
 
 Add "facebook app id" to the application tag of AndroidManifest.xml
 ```
-    //add this under manifest (oustside <application> tag)
+    // add this under manifest (outside the <application> tag)
     <queries>
         <provider android:authorities="com.facebook.katana.provider.PlatformProvider" /> 
     </queries>
@@ -54,7 +54,9 @@ string.xml:
 ```
 #### IOS
 
-make sure you add below deatils in your plist file.
+The iOS implementation uses Swift Package Manager. It requires Flutter 3.47 or later, iOS 15 or later, and Xcode 15 or later; no Podfile or `pod install` step is needed.
+
+Make sure you add the following details to your plist file.
 
 ```
     <key>FacebookAppID</key>
@@ -111,13 +113,12 @@ and then call the function like below:
     String? result = await shareFacebookCallbackPlugin.shareFacebook(
       type: ShareType.sharePhotoFacebook,
       quote: 'This is my picture',
-      imageName: 'My image name',
-      uint8Image: image.readAsBytesSync(), // pick image from gallery or camera using iamge picker package or file picker or similar
+      uint8Image: image.readAsBytesSync(), // pick an image using image_picker, file_picker, or a similar package
     );
 ```
 
 #### Callbacks
-Result is a **nullable** string, if user successfully shares the link or picture to facebook, its value will be **success**
+The returned value is `success` after sharing or `cancel` when the dialog is dismissed. Invalid input, an unavailable Facebook dialog, and SDK failures are reported as `PlatformException` with a stable error code.
 
 #### Note
 Facebook share dialog for iOS is part of iOS facebook app itself and it will not work on iOS simulators, use real iOS device for testing

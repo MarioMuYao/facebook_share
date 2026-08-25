@@ -1,11 +1,12 @@
 name: facebook_share_callback
 description: "Flutter package to share URL or Picture to facebook using facebook share dialog with callbacks"
-version: 1.0.1
+version: 1.1.0
 homepage: "https://github.com/MuhammadFaizan980/facebook_share_callback"
 
 environment:
   sdk: ^3.7.0
-  flutter: '>=3.3.0'
+  # Swift Package Manager integration requires Flutter 3.47 or later.
+  flutter: '>=3.47.0'
 
 dependencies:
   flutter:

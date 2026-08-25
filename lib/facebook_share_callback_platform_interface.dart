@@ -10,7 +10,8 @@ abstract class FacebookShareCallbackPlatform extends PlatformInterface {
 
   static final Object _token = Object();
 
-  static FacebookShareCallbackPlatform _instance = MethodChannelFacebookShareCallback();
+  static FacebookShareCallbackPlatform _instance =
+      MethodChannelFacebookShareCallback();
 
   /// The default instance of [FacebookShareCallbackPlatform] to use.
   ///
@@ -30,6 +31,5 @@ abstract class FacebookShareCallbackPlatform extends PlatformInterface {
     String? quote,
     String? url,
     Uint8List? uint8Image,
-    String? imageName,
   });
 }

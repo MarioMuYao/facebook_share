@@ -15,13 +15,11 @@ class MethodChannelFacebookShareCallback extends FacebookShareCallbackPlatform {
     String? quote,
     String? url,
     Uint8List? uint8Image,
-    String? imageName,
   }) async {
     final result = await methodChannel.invokeMethod<String?>('facebook_share', {
       'type': type,
       'url': url,
       'uint8Image': uint8Image,
-      'imageName': imageName,
       'quote': quote,
     });
     return result;

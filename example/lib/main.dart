@@ -26,13 +26,19 @@ class _MyAppState extends State<MyApp> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             TextButton(
-              onPressed: () => _shareUrl(url: 'https:www.my-url-com', quote: 'This is my quote'),
+              onPressed:
+                  () => _shareUrl(
+                    url: 'https://www.example.com',
+                    quote: 'This is my quote',
+                  ),
               child: Text('Share Link to Facebook'),
             ),
             const SizedBox(height: 12),
             TextButton(
               onPressed: () async {
-                XFile? file = await ImagePicker().pickImage(source: ImageSource.gallery);
+                XFile? file = await ImagePicker().pickImage(
+                  source: ImageSource.gallery,
+                );
                 if (file != null) {
                   _sharePicture(image: File(file.path));
                 }
@@ -48,7 +54,7 @@ class _MyAppState extends State<MyApp> {
   Future<void> _shareUrl({required String url, required String? quote}) async {
     final shareFacebookCallbackPlugin = FacebookShareCallback();
 
-    String? result = await shareFacebookCallbackPlugin.shareFacebook(
+    await shareFacebookCallbackPlugin.shareFacebook(
       type: ShareType.shareLinksFacebook,
       quote: quote,
       url: url,
@@ -57,10 +63,9 @@ class _MyAppState extends State<MyApp> {
 
   Future<void> _sharePicture({required File image}) async {
     final shareFacebookCallbackPlugin = FacebookShareCallback();
-    String? result = await shareFacebookCallbackPlugin.shareFacebook(
+    await shareFacebookCallbackPlugin.shareFacebook(
       type: ShareType.sharePhotoFacebook,
       quote: 'This is my picture',
-      imageName: 'My image name',
       uint8Image: image.readAsBytesSync(),
     );
   }
