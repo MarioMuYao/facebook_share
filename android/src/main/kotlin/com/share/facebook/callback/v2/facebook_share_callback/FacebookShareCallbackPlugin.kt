@@ -2,6 +2,7 @@ package com.share.facebook.callback.v2.facebook_share_callback
 
 import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Handler
@@ -35,6 +36,7 @@ class FacebookShareCallbackPlugin : FlutterPlugin, MethodChannel.MethodCallHandl
         private const val ACTIVITY_UNAVAILABLE = "activity_unavailable"
         private const val SHARE_UNAVAILABLE = "share_unavailable"
         private const val SHARE_FAILED = "share_failed"
+        private const val CONFIGURATION_ERROR = "configuration_error"
         private const val INVALID_IMAGE = "invalid_image"
         private const val SHARE_IN_PROGRESS = "share_in_progress"
     }
@@ -44,6 +46,7 @@ class FacebookShareCallbackPlugin : FlutterPlugin, MethodChannel.MethodCallHandl
     private var activityBinding: ActivityPluginBinding? = null
     private var callbackManager: CallbackManager? = null
     private var shareInProgress = false
+    private var pendingResult: MethodChannel.Result? = null
 
     override fun onAttachedToEngine(@NonNull binding: FlutterPlugin.FlutterPluginBinding) {
         channel = MethodChannel(binding.binaryMessenger, CHANNEL_NAME).also {
@@ -58,6 +61,7 @@ class FacebookShareCallbackPlugin : FlutterPlugin, MethodChannel.MethodCallHandl
         channel = null
         callbackManager = null
         shareInProgress = false
+        pendingResult = null
     }
 
     override fun onAttachedToActivity(@NonNull binding: ActivityPluginBinding) {
@@ -80,6 +84,20 @@ class FacebookShareCallbackPlugin : FlutterPlugin, MethodChannel.MethodCallHandl
     }
 
     private fun detachFromActivity() {
+        if (shareInProgress) {
+            val result = pendingResult
+            shareInProgress = false
+            pendingResult = null
+            if (result != null) {
+                Handler(Looper.getMainLooper()).post {
+                    result.error(
+                        ACTIVITY_UNAVAILABLE,
+                        "The Activity was detached while the Facebook share was in progress.",
+                        null,
+                    )
+                }
+            }
+        }
         activityBinding?.removeActivityResultListener(this)
         activityBinding = null
         activity = null
@@ -115,6 +133,10 @@ class FacebookShareCallbackPlugin : FlutterPlugin, MethodChannel.MethodCallHandl
             result.error(ACTIVITY_UNAVAILABLE, "No active Activity is available.", null)
             return
         }
+        facebookConfigurationError(currentActivity)?.let { error ->
+            result.error(CONFIGURATION_ERROR, error.message, error.details)
+            return
+        }
         val manager = callbackManager ?: run {
             result.error(SHARE_UNAVAILABLE, "Facebook callback manager is unavailable.", null)
             return
@@ -134,7 +156,12 @@ class FacebookShareCallbackPlugin : FlutterPlugin, MethodChannel.MethodCallHandl
         try {
             shareDialog.show(content)
         } catch (error: RuntimeException) {
-            finishError(result, SHARE_FAILED, error.message ?: "Facebook share failed.")
+            finishError(
+                result,
+                SHARE_FAILED,
+                error.message ?: "Facebook share failed.",
+                mapOf("exception" to error.javaClass.name),
+            )
         }
     }
 
@@ -150,6 +177,10 @@ class FacebookShareCallbackPlugin : FlutterPlugin, MethodChannel.MethodCallHandl
         }
         val currentActivity = activity ?: run {
             result.error(ACTIVITY_UNAVAILABLE, "No active Activity is available.", null)
+            return
+        }
+        facebookConfigurationError(currentActivity)?.let { error ->
+            result.error(CONFIGURATION_ERROR, error.message, error.details)
             return
         }
         val manager = callbackManager ?: run {
@@ -169,7 +200,12 @@ class FacebookShareCallbackPlugin : FlutterPlugin, MethodChannel.MethodCallHandl
         try {
             shareDialog.show(content)
         } catch (error: RuntimeException) {
-            finishError(result, SHARE_FAILED, error.message ?: "Facebook share failed.")
+            finishError(
+                result,
+                SHARE_FAILED,
+                error.message ?: "Facebook share failed.",
+                mapOf("exception" to error.javaClass.name),
+            )
         }
     }
 
@@ -191,6 +227,7 @@ class FacebookShareCallbackPlugin : FlutterPlugin, MethodChannel.MethodCallHandl
             return false
         }
         shareInProgress = true
+        pendingResult = result
         return true
     }
 
@@ -209,7 +246,15 @@ class FacebookShareCallbackPlugin : FlutterPlugin, MethodChannel.MethodCallHandl
             }
 
             override fun onError(error: FacebookException) {
-                finishError(result, SHARE_FAILED, error.message ?: "Facebook share failed.")
+                finishError(
+                    result,
+                    SHARE_FAILED,
+                    error.message ?: "Facebook share failed.",
+                    mapOf(
+                        "exception" to error.javaClass.name,
+                        "cause" to error.cause?.message,
+                    ),
+                )
             }
         })
     }
@@ -217,16 +262,60 @@ class FacebookShareCallbackPlugin : FlutterPlugin, MethodChannel.MethodCallHandl
     private fun finishSuccess(result: MethodChannel.Result, value: String) {
         if (!shareInProgress) return
         shareInProgress = false
+        pendingResult = null
         Handler(Looper.getMainLooper()).post { result.success(value) }
     }
 
-    private fun finishError(result: MethodChannel.Result, code: String, message: String) {
-        if (!shareInProgress) {
-            result.error(code, message, null)
-            return
-        }
+    private fun finishError(
+        result: MethodChannel.Result,
+        code: String,
+        message: String,
+        details: Any? = null,
+    ) {
+        if (!shareInProgress) return
         shareInProgress = false
-        Handler(Looper.getMainLooper()).post { result.error(code, message, null) }
+        pendingResult = null
+        Handler(Looper.getMainLooper()).post { result.error(code, message, details) }
+    }
+
+    private data class ConfigurationError(val message: String, val details: Map<String, Any?>)
+
+    private fun facebookConfigurationError(currentActivity: Activity): ConfigurationError? {
+        val applicationInfo = try {
+            currentActivity.packageManager.getApplicationInfo(
+                currentActivity.packageName,
+                PackageManager.GET_META_DATA,
+            )
+        } catch (error: PackageManager.NameNotFoundException) {
+            return ConfigurationError(
+                "Facebook SDK metadata could not be read from AndroidManifest.xml.",
+                mapOf("exception" to error.javaClass.name),
+            )
+        }
+
+        val metadata = applicationInfo.metaData
+        val appId = metadata?.get("com.facebook.sdk.ApplicationId")?.toString()?.trim().orEmpty()
+        val clientToken = metadata?.get("com.facebook.sdk.ClientToken")?.toString()?.trim().orEmpty()
+        val missingKeys = buildList {
+            if (appId.isEmpty()) add("com.facebook.sdk.ApplicationId")
+            if (clientToken.isEmpty()) add("com.facebook.sdk.ClientToken")
+        }
+        val invalidKeys = if (appId.isNotEmpty() && !appId.all(Char::isDigit)) {
+            listOf("com.facebook.sdk.ApplicationId")
+        } else {
+            emptyList()
+        }
+
+        if (missingKeys.isNotEmpty() || invalidKeys.isNotEmpty()) {
+            return ConfigurationError(
+                "Facebook SDK is not configured. Add valid ApplicationId and ClientToken metadata to AndroidManifest.xml.",
+                mapOf(
+                    "missingKeys" to missingKeys,
+                    "invalidKeys" to invalidKeys,
+                ),
+            )
+        }
+        return null
     }
 
     private fun validUrl(value: String?): Uri? {

@@ -1,8 +1,9 @@
 import FBSDKShareKit
+import FacebookCore
 import Flutter
 import UIKit
 
-public final class FacebookShareCallbackPlugin: NSObject, FlutterPlugin, SharingDelegate {
+public final class FacebookShareCallbackPlugin: NSObject, FlutterPlugin, SharingDelegate, FlutterSceneLifeCycleDelegate {
     private static let shareMethod = "facebook_share"
     private static let linkType = "shareLinksFacebook"
     private static let photoType = "sharePhotoFacebook"
@@ -18,6 +19,49 @@ public final class FacebookShareCallbackPlugin: NSObject, FlutterPlugin, Sharing
         let instance = FacebookShareCallbackPlugin()
         instance.viewController = registrar.viewController
         registrar.addMethodCallDelegate(instance, channel: channel)
+        registrar.addApplicationDelegate(instance)
+        if #available(iOS 13.0, *) {
+            registrar.addSceneDelegate(instance)
+        }
+        // Flutter may register plugins after UIApplicationDelegate launch callbacks.
+        _ = ApplicationDelegate.shared.application(
+            UIApplication.shared,
+            didFinishLaunchingWithOptions: nil
+        )
+    }
+
+    public func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        ApplicationDelegate.shared.application(
+            application,
+            didFinishLaunchingWithOptions: launchOptions
+        )
+    }
+
+    public func application(
+        _ application: UIApplication,
+        open url: URL,
+        options: [UIApplication.OpenURLOptionsKey: Any] = [:]
+    ) -> Bool {
+        ApplicationDelegate.shared.application(application, open: url, options: options)
+    }
+
+    @available(iOS 13.0, *)
+    public func scene(
+        _ scene: UIScene,
+        openURLContexts URLContexts: Set<UIOpenURLContext>
+    ) -> Bool {
+        var handled = false
+        for context in URLContexts {
+            handled = ApplicationDelegate.shared.application(
+                UIApplication.shared,
+                open: context.url,
+                options: [:]
+            ) || handled
+        }
+        return handled
     }
 
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -82,7 +126,11 @@ public final class FacebookShareCallbackPlugin: NSObject, FlutterPlugin, Sharing
     }
 
     @objc public func sharer(_ sharer: Sharing, didFailWithError error: Error) {
-        complete(errorCode: "share_failed", message: error.localizedDescription)
+        complete(
+            errorCode: "share_failed",
+            message: message(for: error),
+            details: details(for: error)
+        )
     }
 
     @objc public func sharerDidCancel(_ sharer: Sharing) {
@@ -92,7 +140,15 @@ public final class FacebookShareCallbackPlugin: NSObject, FlutterPlugin, Sharing
     private func shareLinksFacebook(withQuote quote: String?, withURL url: URL) {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            guard let viewController = self.viewController else {
+            if let configurationError = self.facebookConfigurationError() {
+                self.complete(
+                    errorCode: "configuration_error",
+                    message: configurationError.message,
+                    details: configurationError.details
+                )
+                return
+            }
+            guard let viewController = self.presentingViewController() else {
                 self.complete(errorCode: "activity_unavailable", message: "No active view controller is available.")
                 return
             }
@@ -105,14 +161,39 @@ public final class FacebookShareCallbackPlugin: NSObject, FlutterPlugin, Sharing
                 self.complete(errorCode: "share_unavailable", message: "Facebook cannot show link sharing on this device.")
                 return
             }
-            shareDialog.show()
+            do {
+                try shareDialog.validate()
+            } catch {
+                self.complete(
+                    errorCode: "invalid_share_content",
+                    message: self.message(for: error),
+                    details: self.details(for: error)
+                )
+                return
+            }
+            let didShow = shareDialog.show()
+            if !didShow {
+                self.complete(
+                    errorCode: "share_failed",
+                    message: "Facebook could not start the share dialog. Verify the Facebook app configuration and URL scheme.",
+                    details: ["reason": "share_dialog_not_started"]
+                )
+            }
         }
     }
 
     private func sharePhotoFacebook(withImageData imageData: FlutterStandardTypedData) {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            guard let viewController = self.viewController else {
+            if let configurationError = self.facebookConfigurationError() {
+                self.complete(
+                    errorCode: "configuration_error",
+                    message: configurationError.message,
+                    details: configurationError.details
+                )
+                return
+            }
+            guard let viewController = self.presentingViewController() else {
                 self.complete(errorCode: "activity_unavailable", message: "No active view controller is available.")
                 return
             }
@@ -129,7 +210,24 @@ public final class FacebookShareCallbackPlugin: NSObject, FlutterPlugin, Sharing
                 self.complete(errorCode: "share_unavailable", message: "Facebook cannot show photo sharing on this device.")
                 return
             }
-            shareDialog.show()
+            do {
+                try shareDialog.validate()
+            } catch {
+                self.complete(
+                    errorCode: "invalid_share_content",
+                    message: self.message(for: error),
+                    details: self.details(for: error)
+                )
+                return
+            }
+            let didShow = shareDialog.show()
+            if !didShow {
+                self.complete(
+                    errorCode: "share_failed",
+                    message: "Facebook could not start the share dialog. Verify the Facebook app configuration and URL scheme.",
+                    details: ["reason": "share_dialog_not_started"]
+                )
+            }
         }
     }
 
@@ -144,12 +242,109 @@ public final class FacebookShareCallbackPlugin: NSObject, FlutterPlugin, Sharing
         return url
     }
 
-    private func complete(value: Any? = nil, errorCode: String? = nil, message: String? = nil) {
+    private func presentingViewController() -> UIViewController? {
+        let activeScenes = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .filter { $0.activationState == .foregroundActive }
+
+        let window = activeScenes
+            .flatMap(\.windows)
+            .first(where: { $0.isKeyWindow })
+            ?? activeScenes
+                .flatMap(\.windows)
+                .first(where: { !$0.isHidden && $0.alpha > 0 })
+
+        return topViewController(window?.rootViewController) ?? viewController
+    }
+
+    private func topViewController(_ viewController: UIViewController?) -> UIViewController? {
+        guard let viewController else { return nil }
+
+        if let presented = viewController.presentedViewController,
+           !presented.isBeingDismissed {
+            return topViewController(presented)
+        }
+        if let navigationController = viewController as? UINavigationController {
+            return topViewController(navigationController.visibleViewController)
+        }
+        if let tabBarController = viewController as? UITabBarController {
+            return topViewController(tabBarController.selectedViewController)
+        }
+        return viewController
+    }
+
+    private func message(for error: Error) -> String {
+        let nsError = error as NSError
+        let localized = nsError.localizedDescription
+        guard nsError.code == 0 || localized.isEmpty else { return localized }
+        return "Facebook returned an unspecified share error (\(nsError.domain), code \(nsError.code)). Verify the Facebook App ID, URL schemes, and Facebook app configuration."
+    }
+
+    private func details(for error: Error) -> [String: Any] {
+        let nsError = error as NSError
+        var details: [String: Any] = [
+            "domain": nsError.domain,
+            "code": nsError.code,
+        ]
+        if let reason = nsError.localizedFailureReason {
+            details["failureReason"] = reason
+        }
+        if let suggestion = nsError.localizedRecoverySuggestion {
+            details["recoverySuggestion"] = suggestion
+        }
+        if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? NSError {
+            details["underlyingError"] = "\(underlying.domain) (code \(underlying.code)): \(underlying.localizedDescription)"
+        }
+        return details
+    }
+
+    private func facebookConfigurationError() -> (message: String, details: [String: Any])? {
+        let appID = Settings.shared.appID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let clientToken = Settings.shared.clientToken?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        var missingKeys: [String] = []
+
+        if appID.isEmpty {
+            missingKeys.append("FacebookAppID")
+        }
+        if clientToken.isEmpty {
+            missingKeys.append("FacebookClientToken")
+        }
+
+        guard missingKeys.isEmpty else {
+            return (
+                "Facebook SDK is not configured. Add valid FacebookAppID and FacebookClientToken values to Info.plist.",
+                ["missingKeys": missingKeys]
+            )
+        }
+
+        let expectedScheme = "fb\(appID)\(Settings.shared.appURLSchemeSuffix ?? "")"
+        let configuredSchemes = (Bundle.main.object(forInfoDictionaryKey: "CFBundleURLTypes") as? [[String: Any]] ?? [])
+            .flatMap { $0["CFBundleURLSchemes"] as? [String] ?? [] }
+
+        guard configuredSchemes.contains(expectedScheme) else {
+            return (
+                "Facebook URL scheme is not configured. Add fb\(appID) to CFBundleURLSchemes in Info.plist.",
+                [
+                    "expectedScheme": expectedScheme,
+                    "configuredSchemes": configuredSchemes,
+                ]
+            )
+        }
+
+        return nil
+    }
+
+    private func complete(
+        value: Any? = nil,
+        errorCode: String? = nil,
+        message: String? = nil,
+        details: Any? = nil
+    ) {
         guard let result = pendingResult else { return }
         pendingResult = nil
         let callback = {
             if let errorCode {
-                result(FlutterError(code: errorCode, message: message, details: nil))
+                result(FlutterError(code: errorCode, message: message, details: details))
             } else {
                 result(value)
             }

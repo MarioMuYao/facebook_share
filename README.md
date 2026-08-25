@@ -42,6 +42,8 @@ Add "facebook app id" to the application tag of AndroidManifest.xml
     </application>
 ```
 
+`com.facebook.sdk.ApplicationId`, `com.facebook.sdk.ClientToken`, and the `FacebookContentProvider` authority must use the same real Facebook App ID. The plugin reports `configuration_error` when the required application metadata is missing or the App ID is not numeric.
+
 string.xml:
 ```
 <?xml version="1.0" encoding="utf-8"?>
@@ -84,6 +86,10 @@ Make sure you add the following details to your plist file.
 
 ```
 
+The plugin registers Facebook SDK initialization and both application/scene URL callbacks automatically.
+
+`FacebookAppID`, `FacebookClientToken`, and the `fb[FB_APP_ID]` URL scheme must be replaced with values from the same Facebook app. The URL scheme must match the app ID exactly (or include the configured URL scheme suffix). Placeholder or mismatched values cause `configuration_error` or the Facebook SDK's generic `share_failed` error.
+
 ## Usage
 #### Link Sharing
 import the package
@@ -119,6 +125,8 @@ and then call the function like below:
 
 #### Callbacks
 The returned value is `success` after sharing or `cancel` when the dialog is dismissed. Invalid input, an unavailable Facebook dialog, and SDK failures are reported as `PlatformException` with a stable error code.
+
+For iOS, test on a real device with the Facebook app installed when using the native dialog. Simulators cannot open the Facebook app; browser/share-sheet fallback still depends on a valid Facebook configuration and network access.
 
 #### Note
 Facebook share dialog for iOS is part of iOS facebook app itself and it will not work on iOS simulators, use real iOS device for testing
