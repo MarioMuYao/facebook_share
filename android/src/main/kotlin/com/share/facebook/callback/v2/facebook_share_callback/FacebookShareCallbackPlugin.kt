@@ -237,7 +237,7 @@ class FacebookShareCallbackPlugin : FlutterPlugin, MethodChannel.MethodCallHandl
         result: MethodChannel.Result
     ) {
         shareDialog.registerCallback(manager, object : FacebookCallback<Sharer.Result> {
-            override fun onSuccess(callbackResult: Sharer.Result?) {
+            override fun onSuccess(callbackResult: Sharer.Result) {
                 finishSuccess(result, "success")
             }
 
